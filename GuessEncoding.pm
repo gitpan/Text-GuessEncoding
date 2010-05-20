@@ -13,22 +13,22 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.01';
+our $VERSION = '0.02';
 
 
 =head1 SYNOPSIS
 
 Text::GuessEncoding searches a string for non-ascii contents and
-rewrites them using an ascii replacement.  For Example the german a-Umlaut
+rewrites them using an ASCII replacement.  For Example the german a-Umlaut
 character is replaced by "ae". The input string may or may not have its utf8
-flag set correctly. The returned string has the utf8 flag always off, and
-contains no characters above codepoint 127 (which means it is inside the ascii
-character set).  If called in a list context, C<to_ascii()> returns the mapping
-table as a second value.  This mapping tale is a hash, using all recognized
+flag set correctly; the flag is ignored. The returned string has the utf8 flag 
+always off, and contains no characters above codepoint 127 (which means it is inside 
+the ASCII character set).  If called in a list context, C<to_ascii()> returns the mapping
+table as a second value.  This mapping table is a hash, using all recognized
 encodings as keys. (Any well-formed string should only have one encoding, but
-on can never be sure.) Value per encoding is an array ref, listing all the
+one can never be sure.) Value per encoding is an array ref, listing all the
 codepoints in the following form:
-[ [ $codepoint, $replacement_bytecount, [ $offset, ... ] ], ... ]
+C<[ [ $codepoint, $replacement_bytecount, [ $offset, ... ] ], ... ]>
 Offset positions refer to the output string, where byte counts are identical
 with character counts.
 
@@ -57,14 +57,15 @@ The output string is always flagged as utf8.
 
 =head1 EXPORT
 
-C<to_ascii()> - does what it says;
+C<to_ascii()> - create plain text in 7-bit ASCII encoding.
+C<to_utf8()> - return UTF-8 encoded text .
 
 =head1 SUBROUTINES/METHODS
 
 =head2 to_ascii
 
-to_ascii() is implemented in perl code as a post-processor of to_utf8().
-It examines charnames::viacode($_) and constructs some useful ascii replacements from these.
+C<to_ascii()> is implemented in perl code as a post-processor of C<to_utf8()>.
+It examines C<charnames::viacode($_)> and constructs some useful ascii replacements from these.
 A number of frequently used codepoint values can be precompiled for speed.
 
 =cut

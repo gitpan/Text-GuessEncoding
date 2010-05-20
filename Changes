@@ -1,5 +1,6 @@
-Revision history for Text-ToAscii
+Revision history for Text::GuessEncoding
 
-0.01    Date/time
-        First version, released on an unsuspecting world.
+0.02    2010-05-20, fixed docu and pushed onto cpan.
+
+0.01    2010-01-21, initial draught. Renamed from Text::ToAscii
 
