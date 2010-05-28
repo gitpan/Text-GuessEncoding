@@ -13,7 +13,7 @@ Version 0.01
 
 =cut
 
-our $VERSION = '0.03';
+our $VERSION = '0.04';
 
 
 =head1 SYNOPSIS
@@ -110,7 +110,7 @@ sub to_ascii
 sub probe_file
 {
   my ($fd, $name) = @_;
-  print "probing $name\n" if $verbose;
+  # print "probing $name\n" if $::verbose;
 
   my %typ_latin = map { $_ => 1 } qw(169 171  174 176 177 178 179 181
   185 187 191 192 193 194 195 196 197 199 200 201 202 203 204 205 206 207 208 209

@@ -1,6 +1,6 @@
 --- #YAML:1.0
 name:                Text-GuessEncoding
-version:             0.03
+version:             0.04
 abstract:            convert Text from almost any encoding to ASCII or UTF8
 license:             perl
 author:              
