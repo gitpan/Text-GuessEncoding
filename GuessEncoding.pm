@@ -5,29 +5,34 @@ use strict;
 
 =head1 NAME
 
-Text::GuessEncoding - convert Text from almost any encoding to ASCII or UTF8
+Text::GuessEncoding - Convert Text from almost any encoding to ASCII or UTF8
 
 =head1 VERSION
 
-Version 0.01
+Version 0.05
 
 =cut
 
-our $VERSION = '0.04';
+our $VERSION = '0.05';
 
 
 =head1 SYNOPSIS
 
-Text::GuessEncoding searches a string for non-ascii contents and
-rewrites them using an ASCII replacement.  For Example the german a-Umlaut
-character is replaced by "ae". The input string may or may not have its utf8
-flag set correctly; the flag is ignored. The returned string has the utf8 flag 
-always off, and contains no characters above codepoint 127 (which means it is inside 
-the ASCII character set).  If called in a list context, C<to_ascii()> returns the mapping
-table as a second value.  This mapping table is a hash, using all recognized
-encodings as keys. (Any well-formed string should only have one encoding, but
-one can never be sure.) Value per encoding is an array ref, listing all the
-codepoints in the following form:
+CAUTION: unfinished code. No objects created.
+
+Text::GuessEncoding gathers statistic about typical and invalid codes in 
+both Latin1 and UTF-8. The concept of 'typical' is currently from an 
+european point of view.
+Based on this statistics, methods to transform to Latin1 and UTF-8 are provided. These methods handle 'broken' input strings with mixed encodings well.
+
+The input string may or may not have its utf8 flag set correctly; the flag
+is ignored. The returned string has the utf8 flag always off, and contains
+no characters above codepoint 127 (which means it is inside the ASCII
+character set).  If called in a list context, C<to_ascii()> returns the
+mapping table as a second value.  This mapping table is a hash, using all
+recognized encodings as keys. (Any well-formed string should only have one
+encoding, but one can never be sure.) Value per encoding is an array ref,
+listing all the codepoints in the following form:
 C<[ [ $codepoint, $replacement_bytecount, [ $offset, ... ] ], ... ]>
 Offset positions refer to the output string, where byte counts are identical
 with character counts.
@@ -99,6 +104,11 @@ sub to_ascii
     }
 }
 
+
+=head2 probe_file
+
+C<probe_file()>  contains all the material, from which we should build C<to_utf8>.
+=cut
 ##
 ## if utf8_valid is positive, then it can only be utf-8.
 ##   (if also utf8_invalid and/or latin1_typ are positive, then it is a mixture)
@@ -210,6 +220,146 @@ sub probe_file
     }
   print "$name: utf8_valid=$utf8_valid utf8_invalid=$utf8_invalid latin1_typ=$latin1_typ ascii=$ascii\n";
 }
+
+=head2 utf8toascii
+convert a well formed utf8 file into ascii transcript.
+
+#! /usr/bin/perl -w -T
+# 
+# utf8toascii -- convert a well formed utf8 file into ascii transcript.
+#
+# 2010-01-09, jw -- initial draft.
+#
+# perl -e 'use Encode; use charnames ":full"; map { print charnames::viacode($_). "\n" } unpack "W*", Encode::decode_utf8("J\x{c3}\x{bc}rgen fl\x{ef}\x{ac}\x{82} ü\x{c2}\x{a8}\n")' 
+#
+#use charnames ":full";
+#
+#my $ofd = \*STDOUT;
+#my $ifd = \*STDIN;
+#
+#print STDERR utf8toascii($ifd, $ofd);
+#exit 0;
+#############
+=cut
+sub utf8toascii
+{
+  my ($ifd, $ofd) = @_;
+  my $msg = '';
+
+  binmode($ifd, ":utf8");
+
+  my %ascii_map = 
+  (
+    'RIGHT DOUBLE QUOTATION MARK' 	=> "``",
+    'LEFT DOUBLE QUOTATION MARK'  	=> "''",
+    'RIGHT SINGLE QUOTATION MARK' 	=> "`",
+    'LEFT SINGLE QUOTATION MARK'  	=> "'",
+    'MODIFIER LETTER TURNED COMMA'  	=> "'",
+    'MODIFIER LETTER VERTICAL LINE'  	=> "|",
+    'RIGHT-POINTING DOUBLE ANGLE QUOTATION MARK'	=> ">>",
+    'LEFT-POINTING DOUBLE ANGLE QUOTATION MARK'	=> "<<",
+    'DOUBLE ACUTE ACCENT'  		=> '"',	
+    'ACUTE ACCENT'			=> "'",
+    'DOUBLE LOW-9 QUOTATION MARK'  	=> ',,',
+    'HORIZONTAL ELLIPSIS'			=> '...',
+    'LATIN SMALL LETTER A WITH DIAERESIS' => "ae",
+    'LATIN SMALL LETTER O WITH DIAERESIS' => "oe",
+    'LATIN SMALL LETTER U WITH DIAERESIS' => "ue",
+    'LATIN CAPITAL LETTER A WITH DIAERESIS' => "Ae",
+    'LATIN CAPITAL LETTER O WITH DIAERESIS' => "Oe",
+    'LATIN CAPITAL LETTER U WITH DIAERESIS' => "Ue",
+    'LATIN SMALL LETTER SHARP S'		=> "ss",
+    'LATIN SMALL LIGATURE FL'		=> "fl",
+    'LATIN SMALL LIGATURE FI'		=> "fi",
+    'LATIN SMALL LIGATURE FF'		=> "ff",
+    'LATIN SMALL LIGATURE FFI'		=> "ffi",
+    'LATIN SMALL LIGATURE FFL'		=> "ffl",
+    'NON-BREAKING HYPHEN'			=> "-",
+    'SOFT HYPHEN'				=> "-",
+    'EN DASH'				=> "-",
+    'EM DASH'				=> "--",
+    'SECTION SIGN'			=> "#",
+    'DIVISION SIGN'			=> "/",
+    'WHITE BULLET'			=> "^",
+    'DEGREE SIGN'				=> "^",
+    'DAGGER'				=> "+",
+    'DOUBLE DAGGER'			=> "(++)",
+    'FEMININE ORDINAL INDICATOR'		=> "(x)",
+    'BLACK DIAMOND SUIT'			=> "(*)",
+    'BULLET'				=> "*",
+    'ASTERISK OPERATOR'			=> "*",
+    'MULTIPLICATION SIGN'			=> "*",
+    'INCREMENT'				=> "-",
+    'COPYRIGHT SIGN'			=> "(c)",
+    'REGISTERED SIGN'			=> "(R)",
+    'TRADE MARK SIGN'			=> "(TM)",
+    'BLACK FOUR POINTED STAR'		=> "+",
+    'NARROW NO-BREAK SPACE'		=> " ",
+    'NO-BREAK SPACE'			=> " ",
+    'FIGURE SPACE'			=> " ",
+    'EM SPACE'				=> "  ",
+    'DIE FACE-6'				=> "[6]",
+    'DIE FACE-5'				=> "[5]",
+    'DIE FACE-4'				=> "[4]",
+    'DIE FACE-3'				=> "[3]",
+    'DIE FACE-2'				=> "[2]",
+    'DIE FACE-1'				=> "[1]",
+    'DINGBAT NEGATIVE CIRCLED DIGIT ONE'	=> "(1)",
+    'DINGBAT NEGATIVE CIRCLED DIGIT TWO'	=> "(2)",
+    'DINGBAT NEGATIVE CIRCLED DIGIT THREE'=> "(3)",
+    'DINGBAT NEGATIVE CIRCLED DIGIT FOUR'	=> "(4)",
+    'DINGBAT NEGATIVE CIRCLED DIGIT FIVE'	=> "(5)",
+    'DINGBAT NEGATIVE CIRCLED DIGIT SIX'	=> "(6)",
+    'DINGBAT NEGATIVE CIRCLED DIGIT SEVEN'=> "(7)",
+    'DINGBAT NEGATIVE CIRCLED DIGIT EIGHT'=> "(8)",
+    'DINGBAT NEGATIVE CIRCLED DIGIT NINE'	=> "(9)",
+    'WHITE SQUARE'			=> "[ ]",
+    'UPWARDS ARROW'			=> "^",
+    'DRAFTING POINT RIGHTWARDS ARROW'	=> "(->)",
+    'VULGAR FRACTION ONE HALF'		=> "(1/2)",
+    'VULGAR FRACTION THREE QUARTERS'	=> "(3/4)",
+  );
+
+  while (defined(my $ch = getc($ifd)))
+    {
+      my $v = ord($ch);
+      if ($v < 128)
+	{
+	  print $ofd $ch;
+	}
+      else
+	{
+	  my $name = charnames::viacode($v);
+	  if (defined(my $a = $ascii_map{$name}))
+	    {
+	      print $ofd $a;
+	    }
+	  elsif ($name =~ m{^LATIN (SMALL )?LETTER (FINAL |SMALL CAPITAL |INVERTED )*(\w)})
+	    {
+	      print $ofd lc $3;
+	    }
+	  elsif ($name =~ m{^LATIN CAPITAL LETTER (FINAL |SMALL CAPITAL |INVERTED )*(\w)})
+	    {
+	      print $ofd uc $2;
+	    }
+	  elsif ($name =~ m{^(ARABIC|GREEK) (SMALL )?LETTER (FINAL |SMALL CAPITAL |INVERTED )*(\w+)$})
+	    {
+	      print $ofd lc "-$4-";
+	    }
+	  elsif ($name =~ m{^(ARABIC|GREEK) CAPITAL LETTER (FINAL |SMALL CAPITAL |INVERTED )*(\w+)$})
+	    {
+	      print $ofd uc "-$3-";
+	    }
+	  else
+	    {
+	      printf $ofd "[[%x='$name']]", $v;
+	      $msg .= sprintf "unknown %x='$name'\n", $v;
+	    }
+	}
+    }
+  return $msg;
+}
+
 
 =head1 AUTHOR
 
