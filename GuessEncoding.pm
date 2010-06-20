@@ -9,11 +9,11 @@ Text::GuessEncoding - Convert Text from almost any encoding to ASCII or UTF8
 
 =head1 VERSION
 
-Version 0.05
+Version 0.06
 
 =cut
 
-our $VERSION = '0.05';
+our $VERSION = '0.06';
 
 
 =head1 SYNOPSIS
@@ -102,6 +102,174 @@ sub to_ascii
     {
       printf "non-ascii char at pos %d\n", pos($text);
     }
+}
+
+=head2 sysread_tout(FILE, $len, $tout)
+
+attempts to read $len bytes from FILE, with a select() timeout of $tout.
+
+=cut
+
+sub sysread_tout
+{
+  my ($FILE, $len, $tout) = @_;
+  my $r = '';
+  while ($len > 0)
+    {
+      my $rout;
+      my $rin = '';
+      vec($rin,fileno($FILE), 1) = 1;
+      my ($n, $t) = select($rout = $rin, undef, undef, $tout);
+      $tout = $t if defined $t;
+      last unless $n;
+      my $buf = '';
+      last if sysread($FILE, $buf, 1) <= 0;
+      $r .= $buf;
+      $len--;
+    }
+  return $r;
+}
+
+=head2 $orig_mode = tty_raw(FILE)
+
+Uses POSIX::Termios to set the terminal FILE to raw mode. Returns the previous mode so 
+that it can be restored with tty_set().
+=cut
+
+sub tty_raw
+{
+  my ($FILE) = @_;
+
+  my $t = POSIX::Termios->new;
+  my $o = POSIX::Termios->new;
+  $t->getattr(fileno $FILE);
+  $o->getattr(fileno $FILE);
+
+  $t->setlflag(0);	# -echo, -icanon
+  $t->setcc(POSIX::VMIN, 1);
+  $t->setcc(POSIX::VTIME, 0);
+  tty_set($FILE, $t);
+  return $o;
+}
+
+
+=head2 tty_set(FILE, $tty_mode)
+
+Sets the FILE, which is assumed to be a terminal, to mode $tty_mode .
+=cut
+
+sub tty_set
+{
+  my ($FILE, $t) = @_;
+  $t->setattr(fileno $FILE, POSIX::TCSANOW) or die "TCSANOW failed: $!\n";
+}
+
+
+=head2 get_cursor_pos
+
+Sets tty to raw mode by calling tty_raw(), flushes STDIN, and sends ANSI code 'ESC [ 6 n' 
+(DC6 aka Report cursor Position) and attempts to read the returned position with 
+a 100msec timeout.
+The terminal is returned to the previous mode, and a hashref containing the keys x, y 
+is returned.
+
+=cut
+sub get_cursor_pos
+{
+  my ($hint) = @_;
+  # 1 may be an ansi term?
+  # testing device status report 6, as seen in vttest.
+  my $t = tty_raw(\*STDIN);
+
+  while (length(sysread_tout(\*STDIN, 1, 0.1))) { }
+
+  syswrite(\*STDOUT, "\33[6n", 4);
+  my $r = sysread_tout(\*STDIN, 10, 0.1);
+  tty_set(\*STDIN, $t);
+  return { x => $2 - 1, y => $1 - 1, hint => 'DC6' } if $r =~ m{^\33\[(\d+);(\d+)R};
+  return undef;
+}
+
+
+=head2 probe_tty
+
+Prints a cariage return (no linefeed), to move the cursor to a defined column
+position.  
+Prints a few test characters to STDOUT and calls get_cursor_pos() to check how 
+the terminal reacts upon each, e.g. by  (not) advancing the cursor position
+one or multiple positions.
+Then restores the cursor to the carriage return position.
+=cut
+
+sub probe_tty
+{
+  #
+  # we can use STDIN and STDERR.
+  # 0) first, see, if the terminal can report cursor positions.
+  syswrite(STDOUT, "\r", 1);
+  my $o = get_cursor_pos();
+  print ", x=$o->{x}\n" if $::verbose > 1;
+
+  # - if not, abort.
+  die "get_cursor_pos failed.\n" unless defined $o;
+
+  # - if it can, store the current position 
+  if ($o->{x} != 0)
+    {
+      warn "strace (or other) output interferes or\n" if $o->{x} >= 20;
+      die "carriage return does not work.\n";
+    }
+
+  # 1) write a single byte ascii character, 'X' and check, 
+  # if it advances by one. 
+  syswrite(STDOUT, "\rX", 2);
+  my $p = get_cursor_pos($o->{hint});
+  print ", x=$p->{x}\n" if $::verbose;
+  
+
+  # - If not, it is probably in microsoft-multibyte encoding, 
+  #   and requires '\0' prefixing. check this, report and abort.
+  die "multi-byte mode" if $p->{x} != 1;
+
+  # 2)Then try non-ascii characters, e.g. a-umlaut.
+  # 2a) send its latin1 code, and see what happens,
+  syswrite(STDOUT, "\r1\34434", 5);	# 1, a-umlaut-latin1, 3, 4
+  $p = get_cursor_pos($o->{hint});
+  print ", x=$p->{x}\n" if $::verbose;
+  die "no report" unless defined $p;
+
+  # - no advance indicates that the terminal is not in latin1 mode 
+  #   or a lousy font is used.
+  # - advance by 2 indicates a defect in the tty-emulator.
+  die "latin1 a-umlaut caused confusion." if $p->{x} > 4 or $p->{x} < 2;
+
+  # in utf8, our \344 consumes another char, thus the '3' is not printed.
+  # we don't know what the font does then.
+  my $maybe = 'utf8' if $p->{x} == 2 or $p->{x} == 3;
+  $maybe = 'latin1'  if $p->{x} == 4;
+  print "maybe $maybe\n" if $::verbose;
+  # - advance by 1 says nothing, may be latin1.
+  # 2b) send its utf8 code.
+
+  syswrite(STDOUT, "\r1\303\24434", 6);	 # 1, a-umlaut-utf8, 3, 4
+  $p = get_cursor_pos($o->{hint});
+  print ", x=$p->{x}\n" if $::verbose;
+
+  die "no report" unless defined $p;
+  # - no advance indicates that a lousy font is used.
+  # - advance by one indicates that the terminal is in utf8 mode.
+  # - advance by two indicates that the terminal is in latin1 mode.
+
+  syswrite(STDOUT, "\r      \r", 8) unless $::verbose;	 # clear scratch area
+  
+  if ($p->{x} == 4)
+    {
+      return 'utf8' if $maybe eq 'utf8';
+      return 'possibly utf8';
+    }
+  
+  return 'latin1' if $maybe eq 'latin1';
+  return 'possibly latin1';
 }
 
 

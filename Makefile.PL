@@ -10,6 +10,7 @@ WriteMakefile(
     ($ExtUtils::MakeMaker::VERSION >= 6.3002
       ? ('LICENSE'=> 'perl')
       : ()),
+    EXE_FILES		=> [ 'guess_encoding' ],
     PL_FILES            => {},
     PREREQ_PM => {
         'Test::More' => 0,
