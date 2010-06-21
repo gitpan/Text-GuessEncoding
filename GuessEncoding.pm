@@ -2,6 +2,7 @@ package Text::GuessEncoding;
 
 use warnings;
 use strict;
+use POSIX;
 
 =head1 NAME
 
@@ -9,11 +10,11 @@ Text::GuessEncoding - Convert Text from almost any encoding to ASCII or UTF8
 
 =head1 VERSION
 
-Version 0.06
+Version 0.07
 
 =cut
 
-our $VERSION = '0.06';
+our $VERSION = '0.07';
 
 
 =head1 SYNOPSIS
